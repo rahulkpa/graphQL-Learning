@@ -77,6 +77,28 @@ The application will start on `http://localhost:8080`
 | `quantity` | Integer | Stock quantity |
 | `category` | String | Product category |
 
+#### User Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `userId` | Integer | Unique identifier (Primary Key) |
+| `username` | String | Unique username for login authentication |
+| `email` | String | User's email address for communication |
+| `password` | String | Encrypted password for secure authentication |
+
+**Security Note:** Passwords should always be encrypted using a secure hashing algorithm (e.g., bcrypt) before persisting to the database.
+
+### Entity Relationships
+
+The application currently manages two independent entities:
+
+| Entity | Purpose | Primary Key |
+|--------|---------|------------|
+| **Item** | Inventory item management | itemId (Long) |
+| **User** | User account and authentication | userId (Integer) |
+
+Both entities are stored in an H2 in-memory database and can be extended with relationships (e.g., One-to-Many, Many-to-Many) as needed.
+
 ### GraphQL Queries
 
 #### 1. Find All Items
@@ -192,33 +214,174 @@ mutation {
 }
 ```
 
+### User Management Queries
+
+#### 1. Get All Users
+
+Retrieves all users from the system.
+
+```graphql
+query {
+  users {
+    userId
+    username
+    email
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "users": [
+      {
+        "userId": 1,
+        "username": "john_doe",
+        "email": "john.doe@example.com"
+      }
+    ]
+  }
+}
+```
+
+#### 2. Get User by ID
+
+Retrieves a specific user by their unique identifier.
+
+```graphql
+query {
+  userById(userId: 1) {
+    userId
+    username
+    email
+  }
+}
+```
+
+**Parameters:**
+- `userId` (Integer, Required): The user ID to retrieve
+
+**Response:**
+```json
+{
+  "data": {
+    "userById": {
+      "userId": 1,
+      "username": "john_doe",
+      "email": "john.doe@example.com"
+    }
+  }
+}
+```
+
+### User Management Mutations
+
+#### Save User
+
+Creates a new user or updates an existing user in the system.
+
+```graphql
+mutation {
+  saveUser(user: {
+    userId: 1
+    username: "john_doe"
+    email: "john.doe@example.com"
+    password: "encrypted_password"
+  }) {
+    userId
+    username
+    email
+  }
+}
+```
+
+**Parameters:**
+- `user` (User, Required): User object containing:
+  - `userId` (Integer, Required): Unique user identifier
+  - `username` (String, Required): Username for login
+  - `email` (String, Required): User's email address
+  - `password` (String, Required): Encrypted password
+
+**Response:**
+```json
+{
+  "data": {
+    "saveUser": {
+      "userId": 1,
+      "username": "john_doe",
+      "email": "john.doe@example.com"
+    }
+  }
+}
+```
+
 ## 🏗️ Architecture
 
-The application follows a **three-tier architecture pattern**:
+The application follows a **three-tier architecture pattern** with separate management domains:
 
-### 1. Controller Layer
+### **Inventory Management Domain**
+
+#### 1. Controller Layer - InventoryController
 **File:** `InventoryController.java`
-- Handles GraphQL queries and mutations
-- Maps GraphQL requests to service methods
+- Handles GraphQL queries and mutations for inventory items
+- Maps GraphQL requests to inventory service methods
 - Endpoints: `findAllItems`, `findItemByID`, `createItem`
 
-### 2. Service Layer
+#### 2. Service Layer - InventoryService
 **File:** `InventoryService.java`
 - Contains business logic for inventory operations
-- Orchestrates database operations
+- Orchestrates database operations through repository
 - Methods: `findItemByID()`, `findAllItems()`, `createItem()`
 
-### 3. Repository Layer
+#### 3. Repository Layer - InventoryRepository
 **File:** `InventoryRepository.java`
 - Data access abstraction using Spring Data JPA
 - Extends `JpaRepository<Item, Long>`
-- Manages database persistence
+- Manages item persistence and retrieval
 
-### 4. Entity Layer
+#### 4. Entity Layer - Item
 **File:** `Item.java`
-- JPA Entity mapped to database table
+- JPA Entity mapped to database table `item`
 - Represents the inventory item data model
 - Uses Lombok `@Data` for automatic getters/setters
+
+---
+
+### **User Management Domain**
+
+#### 1. Controller Layer - UserController
+**File:** `UserController.java`
+- Handles GraphQL queries and mutations for user management
+- Maps GraphQL requests to user service methods
+- Endpoints: `saveUser`, `users`, `userById`
+
+#### 2. Service Layer - UserService
+**File:** `UserService.java`
+- Contains business logic for user account operations
+- Orchestrates database operations through repository
+- Methods: `saveUser()`, `users()`, `userById()`
+
+#### 3. Repository Layer - UserRepository
+**File:** `UserRepository.java`
+- Data access abstraction using Spring Data JPA
+- Extends `JpaRepository<User, Integer>`
+- Manages user persistence and retrieval
+
+#### 4. Entity Layer - User
+**File:** `User.java`
+- JPA Entity mapped to database table `user`
+- Represents the user account data model
+- Uses Lombok `@Data` for automatic getters/setters
+
+---
+
+### **Main Application Class**
+
+**File:** `GraphQlLearningApplication.java`
+- Spring Boot entry point
+- Initializes both inventory and user management domains
+- Enables GraphQL and database auto-configuration
 
 ## 🗄️ Database
 
@@ -272,13 +435,17 @@ graphQL-Learning/
     │   ├── java/com/nirsb/graphql/project/graphQL_Learning/
     │   │   ├── GraphQlLearningApplication.java    # Main entry point
     │   │   ├── controller/
-    │   │   │   └── InventoryController.java       # GraphQL endpoints
+    │   │   │   ├── InventoryController.java       # Inventory GraphQL endpoints
+    │   │   │   └── UserController.java            # User GraphQL endpoints
     │   │   ├── entity/
-    │   │   │   └── Item.java                      # Item entity
+    │   │   │   ├── Item.java                      # Item entity
+    │   │   │   └── User.java                      # User entity
     │   │   ├── repository/
-    │   │   │   └── InventoryRepository.java       # Data access
+    │   │   │   ├── InventoryRepository.java       # Item data access
+    │   │   │   └── UserRepository.java            # User data access
     │   │   └── service/
-    │   │       └── InventoryService.java          # Business logic
+    │   │       ├── InventoryService.java          # Item business logic
+    │   │       └── UserService.java               # User business logic
     │   └── resources/
     │       ├── application.properties             # App configuration
     │       └── graphql/
@@ -287,18 +454,127 @@ graphQL-Learning/
         └── java/                                  # Test classes
 ```
 
-## ✅ Tested Operations
+## ✅ Tested GraphQL Operations
 
-The following GraphQL operations have been verified:
+The following GraphQL operations have been verified and tested:
 
 ### Test Case 1: Create Item Mutation ✅
-Creates a new item in the inventory successfully.
+
+**Request:**
+```graphql
+mutation {
+  createItem(
+    itemId: 101
+    name: "Laptop"
+    description: "Gaming Laptop"
+    price: 75000.50
+    quantity: 5
+    category: "Electronics"
+  ) {
+    itemId
+    name
+    description
+    price
+    quantity
+    category
+  }
+}
+```
+
+**Status:** ✅ Verified - Successfully creates a new item in the inventory
+
+---
 
 ### Test Case 2: Find All Items Query ✅
-Retrieves all items from the database successfully.
+
+**Request:**
+```graphql
+query {
+  findAllItems {
+    itemId
+    price
+    category
+  }
+}
+```
+
+**Status:** ✅ Verified - Successfully retrieves all items from the database
+
+---
 
 ### Test Case 3: Find Item By ID Query ✅
-Retrieves a specific item by its ID successfully.
+
+**Request:**
+```graphql
+query {
+  findItemByID(id: 101) {
+    itemId
+    name
+    description
+    price
+  }
+}
+```
+
+**Status:** ✅ Verified - Successfully retrieves a specific item by its ID
+
+---
+
+### Test Case 4: Save User Mutation ✅
+
+**Request:**
+```graphql
+mutation {
+  saveUser(user: {
+    userId: 1
+    username: "john_doe"
+    email: "john.doe@example.com"
+    password: "encrypted_password"
+  }) {
+    userId
+    username
+    email
+  }
+}
+```
+
+**Status:** ✅ Verified - Successfully creates a new user in the system
+
+---
+
+### Test Case 5: Get User By ID Query ✅
+
+**Request:**
+```graphql
+query {
+  userById(userId: 1) {
+    username
+    email
+  }
+}
+```
+
+**Status:** ✅ Verified - Successfully retrieves a specific user by ID
+
+---
+
+### Test Case 6: Get All Users Query ✅
+
+**Request:**
+```graphql
+query {
+  users {
+    userId
+    username
+    email
+    password
+  }
+}
+```
+
+**Status:** ✅ Verified - Successfully retrieves all users from the system
+
+---
 
 ## 📖 Reference Documentation
 

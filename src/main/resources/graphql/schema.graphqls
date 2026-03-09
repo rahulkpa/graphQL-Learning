@@ -1,22 +1,44 @@
 type Query {
     findAllItems: [Item]
     findItemByID(id: ID): Item
+    users: [User]
+    userById(userId: Int): User
 }
 
 type Item {
-    itemId:Int
-    name:String
-    description:String
-    price:Float
-    quantity:Int
-    category:String
+    itemId: Int
+    name: String
+    description: String
+    price: Float
+    quantity: Int
+    category: String
+}
+
+type User {
+    userId: Int
+    username: String
+    email: String
+    password: String
+}
+
+input UserInput {
+    userId: Int!
+    username: String!
+    email: String!
+    password: String!
 }
 
 type Mutation {
-    createItem(itemId:Int,
-        name:String,
-        description:String,
-        price:Float,
-        quantity:Int,
-        category:String): Item
+    createItem(
+        itemId: Int,
+        name: String,
+        description: String,
+        price: Float,
+        quantity: Int,
+        category: String
+    ): Item
+
+    saveUser(user: UserInput!): User
 }
+
+
