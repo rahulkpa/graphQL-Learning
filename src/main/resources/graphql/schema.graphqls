@@ -1,0 +1,22 @@
+type Query {
+    findAllItems: [Item]
+    findItemByID(id: ID): Item
+}
+
+type Item {
+    itemId:Int
+    name:String
+    description:String
+    price:Float
+    quantity:Int
+    category:String
+}
+
+type Mutation {
+    createItem(itemId:Int,
+        name:String,
+        description:String,
+        price:Float,
+        quantity:Int,
+        category:String): Item
+}
