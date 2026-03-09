@@ -62,6 +62,259 @@ The application will start on `http://localhost:8080`
 | **GraphiQL UI** | http://localhost:8080/graphiql |
 | **H2 Console** | http://localhost:8080/h2-console |
 
+## 📮 Testing with Postman
+
+### Overview
+
+This section provides a complete guide to testing GraphQL operations using Postman. The screenshot below shows a successful Create Item mutation request.
+
+**Screenshot Reference:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Postman - GraphQL Request                                       │
+├─────────────────────────────────────────────────────────────────┤
+│ Method: POST | URL: http://localhost:8080/graphql               │
+├─────────────────────────────────────────────────────────────────┤
+│ ┌─ QUERY ──────────────────┐  ┌─ GRAPHQL VARIABLES ──────────┐ │
+│ │ mutation createItem(     │  │ {                             │ │
+│ │   $itemId: Int!,         │  │   "itemId": 101,              │ │
+│ │   $name: String!,        │  │   "name": "Laptop",           │ │
+│ │   $description: String!  │  │   "description": "Gaming...   │ │
+│ │   $price: Float!,        │  │   "price": 75000.5,           │ │
+│ │   $quantity: Int!,       │  │   "quantity": 5,              │ │
+│ │   $category: String!     │  │   "category": "Electronics"   │ │
+│ │ ) {                      │  │ }                             │ │
+│ │   createItem(            │  └───────────────────────────────┘ │
+│ │     itemId: $itemId      │                                     │
+│ │     name: $name          │  RESPONSE: 200 OK | 105 ms         │
+│ │     description: $desc   │  ┌───────────────────────────────┐ │
+│ │     price: $price        │  │ {                             │ │
+│ │     quantity: $quantity  │  │   "data": {                   │ │
+│ │     category: $category  │  │     "createItem": {           │ │
+│ │   ) {                    │  │       "itemId": 101,          │ │
+│ │     itemId               │  │       "name": "Laptop",       │ │
+│ │     name                 │  │       "price": 75000.5,       │ │
+│ │     price                │  │       "quantity": 5,          │ │
+│ │     quantity             │  │       "category": "Elec..."   │ │
+│ │     category             │  │     }                         │ │
+│ │   }                      │  │   }                           │ │
+│ │ }                        │  │ }                             │ │
+│ └──────────────────────────┘  └───────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Step 1: Setup Postman Request
+
+1. **Open Postman** and create a new request
+2. **Set the method to POST**
+3. **Enter the URL:** `http://localhost:8080/graphql`
+4. **Go to the "Body" tab** and select **GraphQL** option
+
+### Step 2: Create Item Mutation with Variables
+
+#### Query
+
+```graphql
+mutation createItem(
+  $itemId: Int!,
+  $name: String!,
+  $description: String!,
+  $price: Float!,
+  $quantity: Int!,
+  $category: String!
+) {
+  createItem(
+    itemId: $itemId
+    name: $name
+    description: $description
+    price: $price
+    quantity: $quantity
+    category: $category
+  ) {
+    itemId
+    name
+    price
+    quantity
+    category
+  }
+}
+```
+
+#### Variables
+
+```json
+{
+  "itemId": 101,
+  "name": "Laptop",
+  "description": "Gaming Laptop",
+  "price": 75000.5,
+  "quantity": 5,
+  "category": "Electronics"
+}
+```
+
+#### Expected Response
+
+```json
+{
+  "data": {
+    "createItem": {
+      "itemId": 101,
+      "name": "Laptop",
+      "price": 75000.5,
+      "quantity": 5,
+      "category": "Electronics"
+    }
+  }
+}
+```
+
+**Response Details:**
+- **Status Code:** `200 OK` ✅
+- **Response Time:** `105 ms`
+- **Response Size:** `272 B`
+
+### Step 3: Complete Postman Setup Instructions
+
+#### Detailed Setup Guide
+
+1. **Download & Install Postman**
+   - Visit [postman.com/downloads](https://www.postman.com/downloads/)
+   - Download for your operating system (Windows, Mac, or Linux)
+   - Install and launch Postman
+
+2. **Create New Request**
+   - Click the `+` icon or go to `New` → `Request`
+   - Name your request: `Create Item`
+   - Select a collection or create new
+   - Click `Save`
+
+3. **Configure Request Method & URL**
+   - **Method Dropdown:** Select `POST` (far left)
+   - **URL Field:** Enter `http://localhost:8080/graphql`
+   - Press `Enter` to confirm
+
+4. **Add Headers**
+   - Click the `Headers` tab
+   - Add a new header:
+     - **Key:** `Content-Type`
+     - **Value:** `application/json`
+   - Header will be auto-applied
+
+5. **Set Request Body - Method A (Recommended)**
+   - Click the `Body` tab
+   - Look for the radio button options at the bottom
+   - Select `GraphQL` option
+   - In the left panel (QUERY), paste the mutation query above
+   - In the right panel (GRAPHQL VARIABLES), paste the variables JSON
+
+6. **Set Request Body - Method B (Alternative)**
+   - Click the `Body` tab
+   - Select `raw` option
+   - From the dropdown (right side), select `JSON`
+   - Paste the following JSON structure:
+   ```json
+   {
+     "query": "mutation createItem($itemId: Int!, $name: String!, $description: String!, $price: Float!, $quantity: Int!, $category: String!) { createItem(itemId: $itemId, name: $name, description: $description, price: $price, quantity: $quantity, category: $category) { itemId, name, price, quantity, category } }",
+     "variables": {
+       "itemId": 101,
+       "name": "Laptop",
+       "description": "Gaming Laptop",
+       "price": 75000.5,
+       "quantity": 5,
+       "category": "Electronics"
+     }
+   }
+   ```
+
+7. **Send Request & View Response**
+   - Click the blue `Send` button (right side)
+   - Wait for the response (usually 100-200ms)
+   - View the response in the panel below
+   - Check the status code (should be `200 OK`)
+
+### Step 4: Test Other Operations
+
+You can test all operations using similar steps:
+
+| Operation | Type | Query Name | Example ID |
+|-----------|------|-----------|-----------|
+| Create Item | Mutation | `createItem` | 101 |
+| Find All Items | Query | `findAllItems` | N/A |
+| Find Item By ID | Query | `findItemByID` | 101 |
+| Save User | Mutation | `saveUser` | 1 |
+| Get User By ID | Query | `userById` | 1 |
+| Get All Users | Query | `users` | N/A |
+
+#### Quick Test: Find All Items
+
+**Query:**
+```graphql
+query {
+  findAllItems {
+    itemId
+    name
+    price
+    category
+  }
+}
+```
+
+**Steps:**
+1. Create a new request named `Find All Items`
+2. Use the same URL: `http://localhost:8080/graphql`
+3. Select `Body` → `GraphQL`
+4. Paste the query above (no variables needed)
+5. Click `Send`
+
+### Step 5: Postman Collections (Optional)
+
+**Create a Postman Collection for All Operations:**
+
+1. Click `Collections` (left sidebar)
+2. Click `New Collection` → Name it `GraphQL Learning`
+3. Add requests for each operation:
+   - Create Item
+   - Find All Items
+   - Find Item By ID
+   - Save User
+   - Get User By ID
+   - Get All Users
+4. Save all URLs as `{{base_url}}/graphql`
+5. Create environment variable `base_url = http://localhost:8080`
+
+### Alternative: Using cURL
+
+If you prefer command-line testing, use cURL:
+
+```bash
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "mutation createItem($itemId: Int!, $name: String!, $description: String!, $price: Float!, $quantity: Int!, $category: String!) { createItem(itemId: $itemId, name: $name, description: $description, price: $price, quantity: $quantity, category: $category) { itemId, name, price, quantity, category } }",
+    "variables": {
+      "itemId": 101,
+      "name": "Laptop",
+      "description": "Gaming Laptop",
+      "price": 75000.5,
+      "quantity": 5,
+      "category": "Electronics"
+    }
+  }'
+```
+
+### Troubleshooting Postman Issues
+
+| Issue | Solution |
+|-------|----------|
+| **Connection Refused** | Ensure application is running on `http://localhost:8080` |
+| **400 Bad Request** | Check JSON syntax in variables and query |
+| **500 Server Error** | Check application logs for errors |
+| **GraphQL not showing** | Make sure `GraphQL` option is selected in Body tab |
+| **Empty Response** | Verify variables match the mutation parameters |
+
+
+
 ## 📚 API Documentation
 
 ### Data Model
