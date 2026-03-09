@@ -313,9 +313,499 @@ curl -X POST http://localhost:8080/graphql \
 | **GraphQL not showing** | Make sure `GraphQL` option is selected in Body tab |
 | **Empty Response** | Verify variables match the mutation parameters |
 
+## 🔐 Password Encryption
+
+### Overview
+
+This application implements **BCrypt password encryption** to securely store user passwords. BCrypt is a widely-used, industry-standard password hashing algorithm that provides strong security for user authentication.
+
+---
+
+## 🔑 Authentication & Security Configuration
+
+### What Happened with the Generated Password?
+
+When you added Spring Security, you saw:
+```
+Using generated security password: 62d5962b-5e21-4004-8521-c4ec580d4f87
+```
+
+This is Spring Security's default behavior. **We've now disabled this** so you can use your own custom users stored in the database.
+
+### Current Security Configuration
+
+The `SecurityConfig.java` file now:
+
+✅ **Disables the auto-generated password** - No more random password on startup
+✅ **Allows public GraphQL access** - No authentication required for `/graphql` endpoints
+✅ **Allows H2 console access** - For development and database inspection
+✅ **Disables CSRF** - Suitable for GraphQL APIs
+✅ **Uses BCrypt encoding** - For secure password storage
+
+### Security Architecture
+
+```
+Application Startup:
+┌─────────────────────────────────────┐
+│ Spring Boot Application Starts       │
+├─────────────────────────────────────┤
+│ ✅ No auto-generated password!      │
+│ ✅ SecurityConfig loads             │
+│ ✅ GraphQL endpoints open           │
+│ ✅ All endpoints are public         │
+└─────────────────────────────────────┘
+
+Public Endpoints (No Auth Required):
+├── POST /graphql          (GraphQL API)
+├── GET /graphiql          (GraphQL UI)
+├── GET /h2-console/**     (Database Console)
+└── GET /                  (All other paths)
+```
+
+### SecurityConfig.java Breakdown
+
+**1. Password Encoder Bean**
+```java
+@Bean
+public PasswordEncoder passwordEncoder() {
+    return new BCryptPasswordEncoder();
+}
+```
+- Creates BCryptPasswordEncoder
+- Used for encoding passwords when saving users
+- Used for verifying passwords during login
+
+**2. Security Filter Chain**
+```java
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http
+        .authorizeHttpRequests(authz -> authz
+            .requestMatchers("/graphql").permitAll()
+            .requestMatchers("/graphiql").permitAll()
+            .requestMatchers("/h2-console/**").permitAll()
+            .anyRequest().permitAll()
+        )
+        .csrf(csrf -> csrf.disable())
+        .httpBasic(httpBasic -> httpBasic.disable())
+        .formLogin(formLogin -> formLogin.disable())
+        .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable()));
+    
+    return http.build();
+}
+```
+
+**What each part does:**
+
+| Configuration | Purpose |
+|---------------|---------|
+| `.permitAll()` | Allow access without authentication |
+| `.csrf().disable()` | Disable CSRF (safe for GraphQL) |
+| `.httpBasic().disable()` | No HTTP Basic auth popup |
+| `.formLogin().disable()` | No default login form |
+| `.frameOptions().disable()` | Allow H2 console in iframe |
+
+### How It Works Now
+
+#### Step 1: Save User with Encrypted Password
+
+```graphql
+mutation {
+  saveUser(user: {
+    userId: 1
+    username: "john_doe"
+    email: "john.doe@example.com"
+    password: "plaintext_password_123"
+  }) {
+    userId
+    username
+    email
+  }
+}
+```
+
+**What happens:**
+1. ✅ No authentication required (endpoint is public)
+2. ✅ UserService receives plain-text password
+3. ✅ BCryptPasswordEncoder encrypts it
+4. ✅ Encrypted password saved to database
+
+#### Step 2: Verify Password (For Login - Future Enhancement)
+
+```java
+// In your login controller or service
+User user = userService.userById(1);
+String loginPassword = "plaintext_password_123";
+
+if (userService.verifyPassword(loginPassword, user.getPassword())) {
+    // ✅ Password matches - authentication successful
+} else {
+    // ❌ Password doesn't match - authentication failed
+}
+```
+
+#### Step 3: Query User
+
+```graphql
+query {
+  users {
+    userId
+    username
+    email
+    password  # This will be encrypted: $2a$10$...
+  }
+}
+```
+
+### Database Verification
+
+To verify passwords are encrypted in H2 Console:
+
+1. **Go to:** `http://localhost:8080/h2-console`
+2. **Run SQL:**
+   ```sql
+   SELECT user_id, username, password FROM app_user;
+   ```
+3. **See encrypted passwords:**
+   ```
+   user_id | username  | password
+   --------|-----------|--------------------------------------
+   1       | john_doe  | $2a$10$N9qo8uLOickgx2ZMRZoMyeIj7lttP87...
+   ```
+
+### Security Features
+
+#### ✅ What's Secure Now:
+
+1. **Password Encryption**
+   - Passwords encrypted with BCrypt
+   - Cannot be reversed
+   - Unique for each user
+
+2. **Public Access**
+   - GraphQL endpoints accessible
+   - H2 console for development
+   - No authentication blocking
+
+3. **CSRF Protection Disabled**
+   - Suitable for GraphQL
+   - Stateless API operations
+
+#### ⚠️ Production Considerations:
+
+For production deployment, you should:
+
+```java
+// PRODUCTION: Enable CSRF
+.csrf(csrf -> csrf.csrfTokenRepository(...))
+
+// PRODUCTION: Require authentication
+.authorizeHttpRequests(authz -> authz
+    .requestMatchers("/graphql").authenticated()
+    .requestMatchers("/login").permitAll()
+    .anyRequest().authenticated()
+)
+
+// PRODUCTION: Add JWT or OAuth2
+.addFilterBefore(new JwtAuthenticationFilter(), ...)
+
+// PRODUCTION: Disable H2 console
+.requestMatchers("/h2-console/**").denyAll()
+
+// PRODUCTION: HTTPS only
+.requiresChannel(channel -> channel
+    .anyRequest()
+    .requiresSecure()
+)
+```
+
+### No More Generated Password!
+
+**Before Configuration:**
+```
+Using generated security password: 62d5962b-5e21-4004-8521-c4ec580d4f87
+```
+
+**After Configuration:**
+```
+✅ No generated password message
+✅ Application starts normally
+✅ GraphQL endpoints ready to use
+✅ Users stored with encrypted passwords
+```
+
+### Testing the Setup
+
+**1. Save User (No Auth Required)**
+```bash
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "mutation { saveUser(user: {userId: 1, username: \"john\", email: \"john@test.com\", password: \"test123\"}) { userId username } }"
+  }'
+```
+
+**2. Get User (No Auth Required)**
+```bash
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "query { userById(userId: 1) { userId username email } }"
+  }'
+```
+
+**3. Check H2 Console**
+```
+URL: http://localhost:8080/h2-console
+Password field shows encrypted hash (✅ Success!)
+```
+
+### Configuration Files
+
+```
+config/
+├── SecurityConfig.java         # Password encoder & security rules
+└── (Other configs as needed)
+```
+
+---
+
+### Why BCrypt?
+
+BCrypt is preferred over plain-text password storage because:
+
+1. **Non-reversible:** Passwords cannot be decrypted (one-way hashing)
+2. **Salted:** Automatically includes a unique salt to prevent rainbow table attacks
+3. **Adaptive:** Computational cost increases over time as computers get faster
+4. **Spring Integrated:** Works seamlessly with Spring Security framework
+
+### How Password Encryption Works
+
+```
+User Registration Flow:
+┌─────────────────────────────────────────────────────┐
+│ 1. User enters password: "myPassword123"             │
+├─────────────────────────────────────────────────────┤
+│ 2. GraphQL mutation sends plain-text password       │
+│    saveUser(user: {                                 │
+│      userId: 1                                      │
+│      username: "john_doe"                           │
+│      password: "myPassword123"                      │
+│    })                                               │
+├─────────────────────────────────────────────────────┤
+│ 3. UserService receives user object                 │
+├─────────────────────────────────────────────────────┤
+│ 4. BCryptPasswordEncoder encrypts password:         │
+│    $2a$10$N9qo8uLOickgx2ZMRZoMyeIj...              │
+├─────────────────────────────────────────────────────┤
+│ 5. Encrypted password stored in database            │
+├─────────────────────────────────────────────────────┤
+│ 6. Original password is NEVER stored                │
+└─────────────────────────────────────────────────────┘
+```
+
+### BCrypt Hash Format
+
+A BCrypt-encoded password looks like this:
+
+```
+$2a$10$N9qo8uLOickgx2ZMRZoMyeIj7lttP87leuQmyJ55ZWlqaklVWzwK2
+└──┘└┘└──────────────────────────────────────────────────────┘
+ │  │  Hashed password (22 characters) + salt
+ │  Rounds (2^10 = 1024 iterations)
+ Algorithm version (2a = BCrypt)
+```
+
+### Implementation Details
+
+#### SecurityConfig.java
+Creates a BCryptPasswordEncoder bean for use throughout the application:
+
+```java
+@Configuration
+public class SecurityConfig {
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+}
+```
+
+#### UserService.java - saveUser() Method
+Automatically encrypts the password before saving:
+
+```java
+public User saveUser(User user) {
+    // Encrypt the password before saving
+    String encryptedPassword = passwordEncoder.encode(user.getPassword());
+    user.setPassword(encryptedPassword);
+    return userRepository.save(user);
+}
+```
+
+### Password Verification
+
+To verify a user's password during login (future enhancement):
+
+```java
+public boolean verifyPassword(String rawPassword, String encodedPassword) {
+    return passwordEncoder.matches(rawPassword, encodedPassword);
+}
+```
+
+**Usage Example:**
+```java
+User user = userService.userById(1);
+String loginPassword = "myPassword123";
+
+if (userService.verifyPassword(loginPassword, user.getPassword())) {
+    // Authentication successful - passwords match
+    System.out.println("Login successful!");
+} else {
+    // Authentication failed - passwords don't match
+    System.out.println("Invalid credentials");
+}
+```
+
+### Testing Password Encryption in Postman
+
+#### Mutation Request
+
+```graphql
+mutation {
+  saveUser(user: {
+    userId: 1
+    username: "john_doe"
+    email: "john.doe@example.com"
+    password: "plaintext_password_123"
+  }) {
+    userId
+    username
+    email
+  }
+}
+```
+
+#### Expected Response
+
+```json
+{
+  "data": {
+    "saveUser": {
+      "userId": 1,
+      "username": "john_doe",
+      "email": "john.doe@example.com"
+    }
+  }
+}
+```
+
+**Important:** Notice the response does NOT include the password. The password is encrypted and stored safely in the database.
+
+#### Verification in H2 Console
+
+1. Go to **H2 Console:** `http://localhost:8080/h2-console`
+2. Run SQL query:
+   ```sql
+   SELECT * FROM app_user WHERE user_id = 1;
+   ```
+3. You'll see the password stored as:
+   ```
+   $2a$10$N9qo8uLOickgx2ZMRZoMyeIj7lttP87leuQmyJ55ZWlqaklVWzwK2
+   ```
+   (Not the plain text "plaintext_password_123")
+
+### Query Encrypted Passwords
+
+When retrieving users, passwords are returned as encrypted hashes:
+
+```graphql
+query {
+  users {
+    userId
+    username
+    email
+    password
+  }
+}
+```
+
+Response:
+```json
+{
+  "data": {
+    "users": [
+      {
+        "userId": 1,
+        "username": "john_doe",
+        "email": "john.doe@example.com",
+        "password": "$2a$10$N9qo8uLOickgx2ZMRZoMyeIj7lttP87leuQmyJ55ZWlqaklVWzwK2"
+      }
+    ]
+  }
+}
+```
+
+### Security Best Practices
+
+✅ **DO:**
+- ✅ Always encrypt passwords before storing
+- ✅ Use strong hashing algorithms like BCrypt
+- ✅ Never log or display plain-text passwords
+- ✅ Use HTTPS for all password transmissions
+- ✅ Implement rate limiting on login attempts
+- ✅ Add password strength validation
+
+❌ **DON'T:**
+- ❌ Store plain-text passwords
+- ❌ Use weak hashing like MD5 or SHA1
+- ❌ Try to decrypt passwords (they can't be!)
+- ❌ Send passwords via unsecured HTTP
+- ❌ Display passwords in API responses
+- ❌ Accept weak passwords (< 8 characters)
+
+### Future Enhancements
+
+To further improve security, consider adding:
+
+1. **Password Strength Validation**
+   - Minimum length requirements
+   - Special character requirements
+   - Number and uppercase letter requirements
+
+2. **Login Authentication**
+   - Verify password during login using `passwordEncoder.matches()`
+   - Return JWT token for authenticated requests
+
+3. **Password Change/Reset**
+   - Allow users to change passwords
+   - Implement password reset via email
+
+4. **Account Lockout**
+   - Lock accounts after multiple failed login attempts
+   - Implement rate limiting
+
+5. **HTTPS Enforcement**
+   - Ensure all requests use HTTPS
+   - Prevent password transmission over HTTP
+
+### Dependencies
+
+Password encryption requires Spring Security:
+
+```gradle
+implementation 'org.springframework.boot:spring-boot-starter-security'
+```
+
+This is automatically added to your `build.gradle` file.
+
+### References
+
+- [Spring Security Documentation](https://spring.io/projects/spring-security)
+- [BCrypt Algorithm](https://en.wikipedia.org/wiki/Bcrypt)
+- [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
 
 
-## 📚 API Documentation
 
 ### Data Model
 
